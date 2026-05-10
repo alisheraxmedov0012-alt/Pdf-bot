@@ -7,7 +7,7 @@ from PyPDF2 import PdfReader, PdfWriter
 
 from aiogram import Bot, Dispatcher, executor, types
 
-API_TOKEN = "BOT_TOKEN"
+API_TOKEN = os.getenv("BOT_TOKEN")
 CHANNELS = ["@Samarqandkvartiralarelonlari", "@Toshkent_kvartira_ijara_elonlari"]
 
 logging.basicConfig(level=logging.INFO)
