@@ -3,3 +3,5 @@ img2pdf
 Pillow
 pdf2image
 PyPDF2
+aiohttp==3.8.5
+
