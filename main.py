@@ -2,8 +2,7 @@ import logging
 import os
 import img2pdf
 from PIL import Image
-from pdf2image import convert_from_path
-from PyPDF2 import PdfReader, PdfWriter
+from PyPDF2 import PdfReader, PdfWriter, PdfMerger
 
 from aiogram import Bot, Dispatcher, executor, types
 
@@ -11,228 +10,139 @@ API_TOKEN = os.getenv("BOT_TOKEN")
 CHANNELS = ["@Samarqandkvartiralarelonlari", "@Toshkent_kvartira_ijara_elonlari"]
 
 logging.basicConfig(level=logging.INFO)
-
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 
-user_photos = {}
-waiting_pdf_name = {}
-
-# =========================
-# OBUNA TEKSHIRISH
-# =========================
+# Ma'lumotlarni vaqtincha saqlash
+user_data = {}
 
 async def check_subscriptions(user_id):
     for channel in CHANNELS:
         try:
             member = await bot.get_chat_member(channel, user_id)
-
             if member.status not in ["member", "administrator", "creator"]:
                 return False
-        except:
-            return False
-
+        except: return False
     return True
 
 async def send_sub_message(message):
     kb = types.InlineKeyboardMarkup(row_width=1)
-
-    for channel in CHANNELS:
-        kb.add(
-            types.InlineKeyboardButton(
-                text=f"📢 {channel}",
-                url=f"https://t.me/{channel[1:]}"
-            )
-        )
-
-    kb.add(
-        types.InlineKeyboardButton(
-            text="✅ Tekshirish",
-            callback_data="check_sub"
-        )
-    )
-
-    await message.answer(
-        "❗ Botdan foydalanish uchun quyidagi kanallarga obuna bo‘ling:",
-        reply_markup=kb
-    )
-
-# =========================
-# START
-# =========================
+    for ch in CHANNELS:
+        kb.add(types.InlineKeyboardButton(text=f"📢 Obuna bo'lish", url=f"https://t.me/{ch[1:]}"))
+    kb.add(types.InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_sub"))
+    await message.answer("❗ Botdan foydalanish uchun kanallarga obuna bo'ling:", reply_markup=kb)
 
 @dp.message_handler(commands=["start"])
 async def start(message: types.Message):
-
     if not await check_subscriptions(message.from_user.id):
         return await send_sub_message(message)
+    
+    welcome_text = """
+🛠 **PDF TOOLKIT BOT** — Barcha imkoniyatlar bir yerda!
 
-    text = """
-🔥 PDF TOOLKIT BOT
+📥 **Nima yubora olasiz?**
+1️⃣ Rasmlar yuboring (PDF qilish uchun)
+2️⃣ PDF fayllar yuboring (Birlashtirish yoki tahrirlash uchun)
 
-📌 Imkoniyatlar:
-
-🖼 Rasm → PDF
-🖼 Ko‘p rasm → 1 PDF
-📄 PDF → Rasm
-📦 PDF siqish
-✏ PDF nomini o‘zgartirish
-
-📷 Rasm yuboring.
+⚙️ **Asosiy menyu:**
 """
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    kb.add("🗑 Tozalash", "📊 Statistika")
+    await message.answer(welcome_text, reply_markup=kb, parse_mode="Markdown")
 
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-
-    kb.add("📄 PDF → Rasm")
-    kb.add("🗑 Tozalash")
-
-    await message.answer(text, reply_markup=kb)
-
-# =========================
-# OBUNA CALLBACK
-# =========================
-
-@dp.callback_query_handler(lambda c: c.data == "check_sub")
-async def check_callback(callback: types.CallbackQuery):
-
-    if await check_subscriptions(callback.from_user.id):
-        await callback.message.answer(
-            "✅ Obuna tasdiqlandi!\n\n📷 Endi rasm yuboring."
-        )
-    else:
-        await callback.message.answer(
-            "❌ Hali barcha kanallarga obuna bo‘lmadingiz."
-        )
-
-# =========================
-# RASM QABUL
-# =========================
-
+# --- RASMLARNI QABUL QILISH ---
 @dp.message_handler(content_types=["photo"])
 async def photo_handler(message: types.Message):
-
-    if not await check_subscriptions(message.from_user.id):
-        return await send_sub_message(message)
-
-    user_id = message.from_user.id
-
+    uid = message.from_user.id
+    if uid not in user_data: user_data[uid] = {'photos': [], 'pdfs': []}
+    
     photo = message.photo[-1]
-
     file = await photo.download()
+    user_data[uid].setdefault('photos', []).append(file.name)
+    
+    kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("📄 PDF-ga aylantirish", callback_data="make_pdf"))
+    await message.answer(f"📸 Rasm qabul qilindi ({len(user_data[uid]['photos'])} ta)", reply_markup=kb)
 
-    if user_id not in user_photos:
-        user_photos[user_id] = []
-
-    user_photos[user_id].append(file.name)
-
-    kb = types.InlineKeyboardMarkup()
-
-    kb.add(
-        types.InlineKeyboardButton(
-            "📄 PDF qilish",
-            callback_data="make_pdf"
-        )
-    )
-
-    await message.answer(
-        f"✅ Rasm qo‘shildi: {len(user_photos[user_id])} ta",
-        reply_markup=kb
-    )
-
-# =========================
-# PDF YASASH
-# =========================
-
-@dp.callback_query_handler(lambda c: c.data == "make_pdf")
-async def make_pdf(callback: types.CallbackQuery):
-
-    user_id = callback.from_user.id
-
-    if user_id not in user_photos:
-        return await callback.message.answer("❌ Rasm topilmadi")
-
-    images = user_photos[user_id]
-
-    pdf_name = f"{user_id}.pdf"
-
-    with open(pdf_name, "wb") as f:
-        f.write(img2pdf.convert(images))
-
-    await bot.send_document(
-        callback.from_user.id,
-        open(pdf_name, "rb"),
-        caption="✅ PDF tayyor"
-    )
-
-    for img in images:
-        if os.path.exists(img):
-            os.remove(img)
-
-    os.remove(pdf_name)
-
-    user_photos[user_id] = []
-
-# =========================
-# PDF → RASM
-# =========================
-
+# --- PDF FAYLLARNI QABUL QILISH ---
 @dp.message_handler(content_types=["document"])
-async def pdf_to_image(message: types.Message):
+async def doc_handler(message: types.Message):
+    uid = message.from_user.id
+    if message.document.mime_type != 'application/pdf':
+        return await message.answer("⚠️ Faqat PDF fayl yuboring!")
 
-    if not await check_subscriptions(message.from_user.id):
-        return await send_sub_message(message)
+    if uid not in user_data: user_data[uid] = {'photos': [], 'pdfs': []}
+    
+    file = await message.document.download()
+    user_data[uid].setdefault('pdfs', []).append(file.name)
+    
+    kb = types.InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        types.InlineKeyboardButton("➕ Birlashtirish", callback_data="merge_pdf"),
+        types.InlineKeyboardButton("🔒 Parol qo'yish", callback_data="set_password"),
+        types.InlineKeyboardButton("ℹ️ Ma'lumot", callback_data="pdf_info")
+    )
+    await message.answer(f"📄 PDF qabul qilindi. Nima qilamiz?", reply_markup=kb)
 
-    doc = message.document
+# --- CALLBACKLAR ---
+@dp.callback_query_handler(lambda c: True)
+async def callback_all(call: types.CallbackQuery):
+    uid = call.from_user.id
+    
+    if call.data == "check_sub":
+        if await check_subscriptions(uid):
+            await call.message.answer("✅ Xush kelibsiz! Rasm yoki PDF yuboring.")
+        else:
+            await call.answer("❌ Obuna topilmadi", show_alert=True)
 
-    if not doc.file_name.endswith(".pdf"):
-        return
+    elif call.data == "make_pdf":
+        if uid in user_data and user_data[uid].get('photos'):
+            out = f"res_{uid}.pdf"
+            with open(out, "wb") as f: f.write(img2pdf.convert(user_data[uid]['photos']))
+            await bot.send_document(uid, open(out, 'rb'), caption="✅ Rasmlardan PDF tayyor!")
+            for img in user_data[uid]['photos']: os.remove(img)
+            os.remove(out)
+            user_data[uid]['photos'] = []
+        else: await call.answer("Rasmlar yo'q!")
 
-    file = await doc.download()
+    elif call.data == "merge_pdf":
+        pdfs = user_data.get(uid, {}).get('pdfs', [])
+        if len(pdfs) < 2: return await call.answer("Kamida 2 ta PDF kerak!", show_alert=True)
+        
+        merger = PdfMerger()
+        out = f"merged_{uid}.pdf"
+        for p in pdfs: merger.append(p)
+        merger.write(out)
+        merger.close()
+        
+        await bot.send_document(uid, open(out, 'rb'), caption="✅ PDF-lar birlashtirildi!")
+        for p in pdfs: os.remove(p)
+        os.remove(out)
+        user_data[uid]['pdfs'] = []
 
-    pages = convert_from_path(file.name)
+    elif call.data == "pdf_info":
+        pdf_list = user_data.get(uid, {}).get('pdfs', [])
+        if not pdf_list: return await call.answer("Fayl yo'q")
+        reader = PdfReader(pdf_list[-1])
+        await call.message.answer(f"📊 Oxirgi PDF ma'lumotlari:\nSahifalar: {len(reader.pages)}")
 
-    await message.answer(f"📄 {len(pages)} ta sahifa topildi")
+    elif call.data == "set_password":
+        await call.message.answer("⚠️ Hozircha standart '1234' paroli o'rnatiladi (Funksiya test rejimida)")
+        pdf_list = user_data.get(uid, {}).get('pdfs', [])
+        if not pdf_list: return
+        reader = PdfReader(pdf_list[-1]); writer = PdfWriter()
+        for page in reader.pages: writer.add_page(page)
+        writer.encrypt("1234")
+        out = f"locked_{uid}.pdf"
+        with open(out, "wb") as f: writer.write(f)
+        await bot.send_document(uid, open(out, 'rb'), caption="🔒 Parol: 1234")
+        os.remove(out)
 
-    for i, page in enumerate(pages):
-
-        image_name = f"{message.from_user.id}_{i}.jpg"
-
-        page.save(image_name, "JPEG")
-
-        await bot.send_photo(
-            message.from_user.id,
-            open(image_name, "rb")
-        )
-
-        os.remove(image_name)
-
-    os.remove(file.name)
-
-# =========================
-# TOZALASH
-# =========================
-
+# --- TOZALASH ---
 @dp.message_handler(lambda m: m.text == "🗑 Tozalash")
-async def clear_data(message: types.Message):
-
-    user_id = message.from_user.id
-
-    user_photos[user_id] = []
-
-    await message.answer("✅ Barcha vaqtinchalik fayllar tozalandi")
-
-# =========================
-# ERROR HANDLER
-# =========================
-
-@dp.errors_handler()
-async def errors(update, error):
-    print(error)
-    return True
-
-# =========================
-# RUN
-# =========================
+async def clear(message: types.Message):
+    user_data[message.from_user.id] = {'photos': [], 'pdfs': []}
+    await message.answer("✅ Navbat tozalandi!")
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
+                                                                                       
