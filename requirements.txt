@@ -1,4 +1,6 @@
 aiogram==2.25.1
+img2pdf
+Pillow
 PyPDF2
-flask
+
 
