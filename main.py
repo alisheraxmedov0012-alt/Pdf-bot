@@ -10,8 +10,10 @@ from threading import Thread
 
 # --- RENDER UYG'OTUVCHI (WEB SERVER) ---
 app = Flask('')
+
 @app.route('/')
-def home(): return "Bot Ishlamoqda!"
+def home():
+    return "Bot Ishlamoqda!"
 
 def run():
     port = int(os.environ.get('PORT', 8080))
@@ -23,7 +25,7 @@ def keep_alive():
 
 # --- BOT SOZLAMALARI ---
 API_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 8344095954  # O'zingizning Telegram ID'ingizni yozing
+ADMIN_ID = 8344095954  # Bu yerga o'zingizning ID raqamingizni yozing
 CHANNELS = ["@Samarqandkvartiralarelonlari", "@Toshkent_kvartira_ijara_elonlari"]
 
 logging.basicConfig(level=logging.INFO)
@@ -40,7 +42,8 @@ async def check_subscriptions(user_id):
             member = await bot.get_chat_member(channel, user_id)
             if member.status not in ["member", "administrator", "creator"]:
                 return False
-        except: return False
+        except:
+            return False
     return True
 
 # --- START KOMANDASI ---
@@ -66,7 +69,8 @@ async def start(message: types.Message):
 • PDF-ga parol qo'yish (1234)
 • Navbatni tozalash
 """
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True).add("🗑 Tozalash", "📊 Statistika")
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    kb.add("🗑 Tozalash", "📊 Statistika")
     await message.answer(welcome, reply_markup=kb, parse_mode="Markdown")
 
 # --- ADMIN UCHUN STATISTIKA ---
@@ -78,10 +82,11 @@ async def stat(message: types.Message):
 @dp.message_handler(content_types=["photo"])
 async def photo_handler(message: types.Message):
     uid = message.from_user.id
-    if uid not in user_data: user_data[uid] = {'photos': [], 'pdfs': []}
+    if uid not in user_data:
+        user_data[uid] = {'photos': [], 'pdfs': []}
     
     file = await message.photo[-1].download()
-    user_data[uid]['photos'].append(file.name)
+    user_data[uid].setdefault('photos', []).append(file.name)
     
     kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("📄 PDF-ga aylantirish", callback_data="make_pdf"))
     await message.answer(f"📸 Rasm qo'shildi ({len(user_data[uid]['photos'])} ta)", reply_markup=kb)
@@ -93,10 +98,11 @@ async def doc_handler(message: types.Message):
         return await message.answer("⚠️ Iltimos, faqat PDF yuboring!")
     
     uid = message.from_user.id
-    if uid not in user_data: user_data[uid] = {'photos': [], 'pdfs': []}
+    if uid not in user_data:
+        user_data[uid] = {'photos': [], 'pdfs': []}
     
     file = await message.document.download()
-    user_data[uid]['pdfs'].append(file.name)
+    user_data[uid].setdefault('pdfs', []).append(file.name)
     
     kb = types.InlineKeyboardMarkup(row_width=2)
     kb.add(
@@ -111,7 +117,7 @@ async def doc_handler(message: types.Message):
 async def process_callbacks(call: types.CallbackQuery):
     uid = call.from_user.id
     
-        if call.data == "check_sub":
+    if call.data == "check_sub":
         if await check_subscriptions(uid):
             kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
             kb.add("🗑 Tozalash", "📊 Statistika")
@@ -119,48 +125,61 @@ async def process_callbacks(call: types.CallbackQuery):
             await call.answer()
         else:
             await call.answer("❌ Hali barcha kanallarga obuna bo'lmadingiz.", show_alert=True)
-         
 
     elif call.data == "make_pdf":
         photos = user_data.get(uid, {}).get('photos', [])
-        if not photos: return await call.answer("Rasmlar yo'q!")
+        if not photos:
+            return await call.answer("Rasmlar yo'q!")
         
         await call.message.answer("⏳ PDF tayyorlanmoqda...")
         out = f"pdf_{uid}.pdf"
-        with open(out, "wb") as f: f.write(img2pdf.convert(photos))
+        with open(out, "wb") as f:
+            f.write(img2pdf.convert(photos))
         await bot.send_document(uid, open(out, 'rb'), caption="✅ Rasmlardan PDF tayyorlandi!")
-        for img in photos: os.remove(img)
-        os.remove(out)
+        for img in photos:
+            if os.path.exists(img): os.remove(img)
+        if os.path.exists(out): os.remove(out)
         user_data[uid]['photos'] = []
 
     elif call.data == "merge_pdf":
         pdfs = user_data.get(uid, {}).get('pdfs', [])
-        if len(pdfs) < 2: return await call.answer("Kamida 2 ta PDF yuboring!", show_alert=True)
+        if len(pdfs) < 2:
+            return await call.answer("Kamida 2 ta PDF yuboring!", show_alert=True)
         
         merger = PdfMerger()
         out = f"merged_{uid}.pdf"
-        for p in pdfs: merger.append(p)
-        merger.write(out); merger.close()
+        for p in pdfs:
+            merger.append(p)
+        merger.write(out)
+        merger.close()
         await bot.send_document(uid, open(out, 'rb'), caption="✅ PDF-lar birlashtirildi!")
-        for p in pdfs: os.remove(p)
-        os.remove(out)
+        for p in pdfs:
+            if os.path.exists(p): os.remove(p)
+        if os.path.exists(out): os.remove(out)
         user_data[uid]['pdfs'] = []
 
     elif call.data == "lock_pdf":
         pdfs = user_data.get(uid, {}).get('pdfs', [])
-        if not pdfs: return await call.answer("Fayl yo'q!")
+        if not pdfs:
+            return await call.answer("Fayl yo'q!")
         
-        reader = PdfReader(pdfs[-1]); writer = PdfWriter()
-        for page in reader.pages: writer.add_page(page)
+        reader = PdfReader(pdfs[-1])
+        writer = PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page)
         writer.encrypt("1234")
         out = f"protected_{uid}.pdf"
-        with open(out, "wb") as f: writer.write(f)
+        with open(out, "wb") as f:
+            writer.write(f)
         await bot.send_document(uid, open(out, 'rb'), caption="🔒 Fayl parollangan: 1234")
-        os.remove(out); os.remove(pdfs[-1]); user_data[uid]['pdfs'] = []
+        if os.path.exists(out): os.remove(out)
+        if os.path.exists(pdfs[-1]): os.remove(pdfs[-1])
+        user_data[uid]['pdfs'] = []
 
     elif call.data == "pdf_info":
         pdfs = user_data.get(uid, {}).get('pdfs', [])
-        if not pdfs: return await call.answer("Fayl yo'q!")
+        if not pdfs:
+            return await call.answer("Fayl yo'q!")
         reader = PdfReader(pdfs[-1])
         await call.message.answer(f"ℹ️ PDF Ma'lumoti:\n📄 Sahifalar: {len(reader.pages)}")
 
@@ -174,4 +193,5 @@ async def clear_data(message: types.Message):
 if __name__ == "__main__":
     keep_alive()
     executor.start_polling(dp, skip_updates=True)
+    
         
