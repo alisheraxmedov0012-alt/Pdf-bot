@@ -52,26 +52,24 @@ async def start(message: types.Message):
     if not await check_subscriptions(message.from_user.id):
         kb = types.InlineKeyboardMarkup(row_width=1)
         for ch in CHANNELS:
-            kb.add(types.InlineKeyboardButton(text=f"📢 Obuna bo'lish", url=f"https://t.me/{ch[1:]}"))
+            kb.add(types.InlineKeyboardButton(text="📢 Obuna bo'lish", url=f"https://t.me/{ch[1:]}"))
         kb.add(types.InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_sub"))
         return await message.answer("❗ Botdan foydalanish uchun kanallarga obuna bo'ling:", reply_markup=kb)
     
-    welcome = """
-🚀 **PRO PDF TOOLKIT BOT**
-
-📸 **Rasm yuboring** -> PDF qilish uchun
-📄 **PDF yuboring** -> Birlashtirish yoki Tahrirlash
-
-🛠 **Mavjud funksiyalar:**
-• Bir nechta rasmni 1 ta PDF qilish
-• PDF-larni birlashtirish (Merge)
-• PDF ma'lumotlarini ko'rish
-• PDF-ga parol qo'yish (1234)
-• Navbatni tozalash
-"""
+    welcome = (
+        "🚀 PRO PDF TOOLKIT BOT\n\n"
+        "📸 Rasm yuboring -> PDF qilish uchun\n"
+        "📄 PDF yuboring -> Birlashtirish yoki Tahrirlash\n\n"
+        "🛠 Mavjud funksiyalar:\n"
+        "• Bir nechta rasmni 1 ta PDF qilish\n"
+        "• PDF-larni birlashtirish (Merge)\n"
+        "• PDF ma'lumotlarini ko'rish\n"
+        "• PDF-ga parol qo'yish (1234)\n"
+        "• Navbatni tozalash"
+    )
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     kb.add("🗑 Tozalash", "📊 Statistika")
-    await message.answer(welcome, reply_markup=kb, parse_mode="Markdown")
+    await message.answer(welcome, reply_markup=kb)
 
 # --- ADMIN UCHUN STATISTIKA ---
 @dp.message_handler(text="📊 Statistika")
