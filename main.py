@@ -1,4 +1,4 @@
- import logging
+import logging
 import os
 import img2pdf
 from PIL import Image
