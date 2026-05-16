@@ -111,11 +111,15 @@ async def doc_handler(message: types.Message):
 async def process_callbacks(call: types.CallbackQuery):
     uid = call.from_user.id
     
-    if call.data == "check_sub":
+        if call.data == "check_sub":
         if await check_subscriptions(uid):
-            await call.message.answer("✅ Rasm yoki PDF yuboring!")
+            kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+            kb.add("🗑 Tozalash", "📊 Statistika")
+            await call.message.answer("✅ Xush kelibsiz! Rasm yoki PDF yuboring.", reply_markup=kb)
+            await call.answer()
         else:
-            await call.answer("❌ Obuna bo'lmadingiz!", show_alert=True)
+            await call.answer("❌ Hali barcha kanallarga obuna bo'lmadingiz.", show_alert=True)
+         
 
     elif call.data == "make_pdf":
         photos = user_data.get(uid, {}).get('photos', [])
