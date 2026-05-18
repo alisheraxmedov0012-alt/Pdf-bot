@@ -1,7 +1,9 @@
 aiogram==2.25.1
-img2pdf
-Pillow
-PyPDF2
-flask
+img2pdf==0.4.4
+Pillow==10.2.0
+PyPDF2==3.0.1
+Flask==3.0.2
+PyMuPDF==1.24.2
+
 
 
