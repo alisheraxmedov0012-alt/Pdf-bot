@@ -1,27 +1,29 @@
-import logging
 import os
+import logging
+import threading
+from flask import Flask
 import img2pdf
-import fitz  # PyMuPDF kutubxonasi (PDF->Rasm va Watermark uchun)
+import fitz  # PyMuPDF
 from PIL import Image
 from PyPDF2 import PdfReader, PdfWriter, PdfMerger
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from flask import Flask
-from threading import Thread
 
 # --- RENDER UYG'OTUVCHI (WEB SERVER) ---
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Bot Ishlamoqda!"
+    return "Bot Muvaffaqiyatli Ishlamoqda va Uyg'oq!"
 
 def run():
+    # Render taqdim etadigan portni oladi yoki 8080 da ishga tushadi
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
-    t = Thread(target=run)
+    t = threading.Thread(target=run)
+    t.daemon = True  # Asosiy kod to'xtasa, bu ham fonda to'g'ri yopilishi uchun
     t.start()
 
 # --- BOT SOZLAMALARI ---
@@ -36,7 +38,7 @@ dp = Dispatcher(bot, storage=storage)
 
 user_data = {}
 
-# --- ASOSIY REPLI MENU TUGMALARI ---
+# --- ASOSIY REPLY MENU TUGMALARI ---
 def get_main_keyboard():
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     kb.add("📸 Rasm -> PDF", "➕ PDF-larni birlashtirish")
@@ -173,7 +175,7 @@ async def menu_delete_page(message: types.Message):
         if len(reader.pages) <= 1:
             return await message.answer("⚠️ Fayl faqat 1 sahifadan iborat, uni o'chirib bo'lmaydi!")
         
-        for i in range(1, len(reader.pages)):  # 0-sahifa (ya'ni 1-bet) tashlab ketiladi
+        for i in range(1, len(reader.pages)):
             writer.add_page(reader.pages[i])
             
         out = f"deleted_{uid}.pdf"
@@ -198,7 +200,7 @@ async def menu_compress_pdf(message: types.Message):
         reader = PdfReader(pdfs[-1])
         writer = PdfWriter()
         for page in reader.pages:
-            page.compress_content_streams()  # Kontent oqimini siqish
+            page.compress_content_streams()
             writer.add_page(page)
         
         out = f"compressed_{uid}.pdf"
@@ -222,7 +224,6 @@ async def menu_watermark_pdf(message: types.Message):
     try:
         doc = fitz.open(pdfs[-1])
         for page in doc:
-            # Sahifaning o'rtasiga qizil-shaffof matn qo'shish
             page.insert_text(fitz.Point(100, 300), "@Pdfuzmaster_bot", fontsize=50, color=(0.8, 0.8, 0.8), rotate=45)
         
         out = f"watermark_{uid}.pdf"
@@ -306,7 +307,12 @@ async def check_callback(call: types.CallbackQuery):
     else:
         await call.answer("❌ Hali barcha kanallarga obuna bo'lmadingiz.", show_alert=True)
 
-# --- LOYIHANI ISHGA TUSHIRISH ---
+# --- LOYIHANI ISHGA TUSHIRISH (To'g'rilangan qismi) ---
 if __name__ == "__main__":
+    # 1. Birinchi bo'lib Flask veb-serverini alohida tizmda fonda yoqamiz
     keep_alive()
+    
+    # 2. Keyin esa aiogram botni asosiy tizimda ishga tushiramiz
+    print("Bot va Web Server muvaffaqiyatli ishga tushirildi...")
     executor.start_polling(dp, skip_updates=True)
+            
